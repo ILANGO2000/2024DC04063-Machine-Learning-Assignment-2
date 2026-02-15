@@ -20,7 +20,6 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
-# Updated import based on new model file
 from models import fetch_pipeline
 
 
@@ -30,18 +29,53 @@ st.set_page_config(page_title="Breast Cancer Diagnostic Dashboard", layout="wide
 st.title("Breast Cancer Diagnostic Dashboard")
 
 
-# -------------------- DATA UPLOAD --------------------
-uploaded_csv = st.file_uploader(
-    "Upload your dataset in CSV format",
-    type=["csv"]
+# ============================================================
+# DATA SOURCE SELECTION
+# ============================================================
+st.markdown("## Dataset Selection")
+
+data_source = st.radio(
+    "Choose data source",
+    ["Use default data", "Upload your own data"]
 )
 
-if uploaded_csv is not None:
+data_frame = None
 
-    data_frame = pd.read_csv(uploaded_csv)
+
+# ==================== DEFAULT DATA ====================
+if data_source == "Use default data":
+
+    if st.button("Load Default Dataset"):
+
+        try:
+            data_frame = pd.read_csv("Data.csv")
+            st.success("Default dataset loaded successfully")
+
+        except:
+            st.error("Default dataset not found in repository")
+
+
+# ==================== UPLOAD DATA ====================
+else:
+
+    uploaded_csv = st.file_uploader(
+        "Upload your dataset in CSV format",
+        type=["csv"]
+    )
+
+    if uploaded_csv is not None:
+        data_frame = pd.read_csv(uploaded_csv)
+        st.success("Uploaded dataset loaded successfully")
+
+
+# ============================================================
+# MAIN WORKFLOW (IF DATA AVAILABLE)
+# ============================================================
+if data_frame is not None:
+
     data_frame.columns = data_frame.columns.str.strip()
 
-    # Handle very large datasets
+    # Limit large datasets
     if len(data_frame) > 20000:
         data_frame = data_frame.sample(20000, random_state=42)
 
@@ -60,10 +94,10 @@ if uploaded_csv is not None:
         feature_data = data_frame.drop(columns=[target_column])
         target_data = data_frame[target_column]
 
-        # Encode categorical target values
+        # Encode categorical target
         if target_data.dtype == "object":
-            label_encoder = LabelEncoder()
-            target_data = label_encoder.fit_transform(target_data)
+            encoder = LabelEncoder()
+            target_data = encoder.fit_transform(target_data)
 
 
         # -------------------- MODEL SELECTION --------------------
@@ -114,12 +148,11 @@ if uploaded_csv is not None:
 
                     trained_pipeline = st.session_state["pipeline_model"]
 
-                    # Train pipeline
                     trained_pipeline.fit(X_train, y_train)
 
                     predictions = trained_pipeline.predict(X_test)
 
-                    # ROC AUC if probability supported
+                    # ROC AUC
                     if hasattr(trained_pipeline, "predict_proba"):
                         probabilities = trained_pipeline.predict_proba(X_test)[:, 1]
                         auc_value = roc_auc_score(y_test, probabilities)
@@ -143,7 +176,7 @@ if uploaded_csv is not None:
                     )
 
 
-                # ==================== DISPLAY METRICS ====================
+                # ==================== MODEL PERFORMANCE ====================
                 st.markdown("## Model Evaluation")
 
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -164,7 +197,7 @@ if uploaded_csv is not None:
 
                 matrix = confusion_matrix(y_test, predictions)
 
-                fig, ax = plt.subplots()
+                fig_cm, ax_cm = plt.subplots()
 
                 sns.heatmap(
                     matrix,
@@ -175,10 +208,10 @@ if uploaded_csv is not None:
                     linecolor="black"
                 )
 
-                ax.set_xlabel("Predicted Label")
-                ax.set_ylabel("Actual Label")
+                ax_cm.set_xlabel("Predicted Label")
+                ax_cm.set_ylabel("Actual Label")
 
-                st.pyplot(fig)
+                st.pyplot(fig_cm)
 
 
                 # ==================== CLASSIFICATION REPORT ====================
@@ -192,16 +225,12 @@ if uploaded_csv is not None:
 
                 report_df = pd.DataFrame(report_dict).transpose()
 
-                st.dataframe(
-                    report_df.round(4),
-                    use_container_width=True
-                )
+                st.dataframe(report_df.round(4), use_container_width=True)
 
 
                 # ============================================================
-                # ADDITIONAL CLINICAL INSIGHTS DASHBOARD
+                # ADDITIONAL CLINICAL INSIGHTS
                 # ============================================================
-
                 st.markdown("## 🔎 Additional Insights for Tumor Classification")
 
 
@@ -217,7 +246,6 @@ if uploaded_csv is not None:
 
                 ax1.set_xlabel("Tumor Type")
                 ax1.set_ylabel("Number of Cases")
-                ax1.set_title("Distribution of Malignant vs Benign Tumors")
 
                 st.pyplot(fig1)
 
@@ -229,17 +257,13 @@ if uploaded_csv is not None:
 
                 if numeric_df.shape[1] > 1:
 
-                    corr_matrix = numeric_df.corr()
-
                     fig2, ax2 = plt.subplots(figsize=(8, 6))
 
                     sns.heatmap(
-                        corr_matrix,
+                        numeric_df.corr(),
                         cmap="viridis",
                         ax=ax2
                     )
-
-                    ax2.set_title("Correlation Between Tumor Features")
 
                     st.pyplot(fig2)
 
@@ -264,10 +288,6 @@ if uploaded_csv is not None:
                         ax=ax3
                     )
 
-                    ax3.set_xlabel("Tumor Type")
-                    ax3.set_ylabel(selected_feature)
-                    ax3.set_title("Feature Comparison Across Classes")
-
                     st.pyplot(fig3)
 
 
@@ -281,10 +301,6 @@ if uploaded_csv is not None:
                     fig4, ax4 = plt.subplots()
 
                     ax4.hist(prob_values, bins=20)
-
-                    ax4.set_xlabel("Probability of Malignant Tumor")
-                    ax4.set_ylabel("Number of Patients")
-                    ax4.set_title("Model Prediction Confidence")
 
                     st.pyplot(fig4)
 
@@ -303,8 +319,5 @@ if uploaded_csv is not None:
                         error_flags.sum()
                     ]
                 )
-
-                ax5.set_ylabel("Number of Cases")
-                ax5.set_title("Model Accuracy Breakdown")
 
                 st.pyplot(fig5)
