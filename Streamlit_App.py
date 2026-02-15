@@ -7,9 +7,14 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score,
-    f1_score, matthews_corrcoef, roc_auc_score,
-    classification_report, confusion_matrix, roc_curve
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    matthews_corrcoef,
+    roc_auc_score,
+    classification_report,
+    confusion_matrix
 )
 
 from models import fetch_pipeline
@@ -19,189 +24,221 @@ st.set_page_config(page_title="Breast Cancer Diagnostic Dashboard", layout="wide
 st.title("Breast Cancer Diagnostic Dashboard")
 
 
-# ============================================================
-# LEFT PANE — MODE SELECTION
-# ============================================================
+st.markdown("## Dataset Selection")
 
-mode = st.sidebar.radio(
-    "Select Mode",
-    [
-        "Default Dataset Analysis",
-        "Upload Dataset Analysis",
-        "Live Predictor"
-    ]
+data_source = st.radio(
+    "Choose data source",
+    ["Use default data", "Upload your own data"]
 )
 
+if "data_frame" not in st.session_state:
+    st.session_state["data_frame"] = None
 
-# ============================================================
-# 1. DEFAULT DATASET ANALYSIS (AUTO)
-# ============================================================
+if "prev_source" not in st.session_state:
+    st.session_state["prev_source"] = data_source
 
-if mode == "Default Dataset Analysis":
+if st.session_state["prev_source"] != data_source:
+    st.session_state["data_frame"] = None
+    st.session_state["prev_source"] = data_source
 
-    data_frame = pd.read_csv("Data.csv")
+
+# ---------- DEFAULT DATA ----------
+if data_source == "Use default data":
+
+    if st.button("Load Default Dataset"):
+        try:
+            st.session_state["data_frame"] = pd.read_csv("Data.csv")
+            st.success("Default dataset loaded successfully")
+        except:
+            st.error("Default dataset not found")
+
+
+# ---------- UPLOAD DATA ----------
+else:
+
+    uploaded_csv = st.file_uploader("Upload your dataset", type=["csv"])
+
+    if uploaded_csv is not None:
+        st.session_state["data_frame"] = pd.read_csv(uploaded_csv)
+        st.success("Uploaded dataset loaded successfully")
+
+
+data_frame = st.session_state["data_frame"]
+
+
+if data_frame is not None:
+
     data_frame.columns = data_frame.columns.str.strip()
 
-    st.markdown("## Default Dataset Sample")
+    if "diagnosis" not in data_frame.columns:
+        st.error("Target column 'diagnosis' not found")
+        st.stop()
+
+    st.markdown("### Dataset Sample")
     st.dataframe(data_frame.head(), use_container_width=True)
+
 
     feature_data = data_frame.drop(columns=["diagnosis"])
     target_data = data_frame["diagnosis"]
 
     if target_data.dtype == "object":
-        target_data = LabelEncoder().fit_transform(target_data)
+        encoder = LabelEncoder()
+        target_data = encoder.fit_transform(target_data)
+
 
     X_train, X_test, y_train, y_test = train_test_split(
-        feature_data, target_data, test_size=0.2, random_state=42
-    )
-
-    st.markdown("## Model Comparison on Default Dataset")
-
-    models_list = [
-        "Logistic Regression", "Decision Tree", "KNN",
-        "Naive Bayes", "Random Forest", "XGBoost"
-    ]
-
-    results = []
-
-    for name in models_list:
-        model = fetch_pipeline(name, X_train)
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
-
-        acc = accuracy_score(y_test, preds)
-        prec = precision_score(y_test, preds, average="weighted")
-        rec = recall_score(y_test, preds, average="weighted")
-        f1 = f1_score(y_test, preds, average="weighted")
-        mcc = matthews_corrcoef(y_test, preds)
-
-        if hasattr(model, "predict_proba"):
-            probs = model.predict_proba(X_test)[:, 1]
-            auc = roc_auc_score(y_test, probs)
-        else:
-            auc = np.nan
-
-        results.append([name, acc, prec, rec, f1, mcc, auc])
-
-    results_df = pd.DataFrame(
-        results,
-        columns=["Model", "Accuracy", "Precision", "Recall", "F1", "MCC", "ROC AUC"]
-    )
-
-    st.dataframe(
-        results_df.style.background_gradient(
-            cmap="YlOrBr",
-            subset=results_df.columns[1:]
-        ),
-        use_container_width=True
+        feature_data,
+        target_data,
+        test_size=0.2,
+        random_state=42
     )
 
 
-# ============================================================
-# 2. UPLOAD DATASET ANALYSIS (SEPARATE FLOW)
-# ============================================================
+    # ============================================================
+    # DEFAULT DATA → RUN ALL MODELS
+    # ============================================================
+    if data_source == "Use default data":
 
-elif mode == "Upload Dataset Analysis":
+        st.markdown("## Model Comparison on Default Dataset")
 
-    uploaded_file = st.file_uploader("Upload dataset", type=["csv"])
+        models_list = [
+            "Logistic Regression",
+            "Decision Tree",
+            "KNN",
+            "Naive Bayes",
+            "Random Forest",
+            "XGBoost"
+        ]
 
-    if uploaded_file is not None:
+        results = []
 
-        data_frame = pd.read_csv(uploaded_file)
-        data_frame.columns = data_frame.columns.str.strip()
+        for name in models_list:
 
-        st.markdown("## Uploaded Dataset Sample")
-        st.dataframe(data_frame.head(), use_container_width=True)
-
-        if "diagnosis" not in data_frame.columns:
-            st.error("diagnosis column required")
-            st.stop()
-
-        feature_data = data_frame.drop(columns=["diagnosis"])
-        target_data = data_frame["diagnosis"]
-
-        if target_data.dtype == "object":
-            target_data = LabelEncoder().fit_transform(target_data)
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            feature_data, target_data, test_size=0.2, random_state=42
-        )
-
-        model_choice = st.selectbox(
-            "Choose model",
-            [
-                "Logistic Regression", "Decision Tree", "KNN",
-                "Naive Bayes", "Random Forest", "XGBoost"
-            ]
-        )
-
-        if st.button("Run Model"):
-
-            model = fetch_pipeline(model_choice, X_train)
+            model = fetch_pipeline(name, X_train)
             model.fit(X_train, y_train)
             preds = model.predict(X_test)
 
             acc = accuracy_score(y_test, preds)
             prec = precision_score(y_test, preds, average="weighted")
             rec = recall_score(y_test, preds, average="weighted")
-            f1_val = f1_score(y_test, preds, average="weighted")
-            mcc_val = matthews_corrcoef(y_test, preds)
+            f1 = f1_score(y_test, preds, average="weighted")
+            mcc = matthews_corrcoef(y_test, preds)
 
-            st.markdown("## Evaluation")
+            if hasattr(model, "predict_proba"):
+                probs = model.predict_proba(X_test)[:, 1]
+                auc = roc_auc_score(y_test, probs)
+            else:
+                auc = np.nan
+
+            results.append([name, acc, prec, rec, f1, mcc, auc])
+
+        results_df = pd.DataFrame(
+            results,
+            columns=["Model", "Accuracy", "Precision", "Recall", "F1", "MCC", "ROC AUC"]
+        )
+
+        styled = results_df.style.background_gradient(cmap="viridis", subset=results_df.columns[1:])
+        st.dataframe(styled, use_container_width=True)
+
+
+    # ============================================================
+    # UPLOADED DATA → USER SELECTS MODEL
+    # ============================================================
+    else:
+
+        model_choice = st.selectbox(
+            "Choose a classification algorithm",
+            [
+                "Logistic Regression",
+                "Decision Tree",
+                "KNN",
+                "Naive Bayes",
+                "Random Forest",
+                "XGBoost"
+            ]
+        )
+
+        if st.button("Run Model"):
+
+            with st.spinner("Model is running..."):
+
+                trained_pipeline = fetch_pipeline(model_choice, X_train)
+                trained_pipeline.fit(X_train, y_train)
+                predictions = trained_pipeline.predict(X_test)
+
+                if hasattr(trained_pipeline, "predict_proba"):
+                    probabilities = trained_pipeline.predict_proba(X_test)[:, 1]
+                    auc_value = roc_auc_score(y_test, probabilities)
+                else:
+                    auc_value = None
+
+                acc = accuracy_score(y_test, predictions)
+                prec = precision_score(y_test, predictions, average="weighted")
+                rec = recall_score(y_test, predictions, average="weighted")
+                f1_val = f1_score(y_test, predictions, average="weighted")
+                mcc_val = matthews_corrcoef(y_test, predictions)
+
+
+            st.markdown("## Model Evaluation")
 
             c1, c2, c3, c4, c5 = st.columns(5)
+
             c1.metric("Accuracy", f"{acc:.4f}")
             c2.metric("Precision", f"{prec:.4f}")
             c3.metric("Recall", f"{rec:.4f}")
             c4.metric("F1 Score", f"{f1_val:.4f}")
             c5.metric("MCC", f"{mcc_val:.4f}")
 
+            if auc_value is not None:
+                st.metric("ROC AUC", f"{auc_value:.4f}")
 
-# ============================================================
-# 3. LIVE PREDICTOR (SEPARATE MODE)
-# ============================================================
 
-elif mode == "Live Predictor":
+            st.markdown("## Confusion Matrix")
 
-    default_data = pd.read_csv("Data.csv")
-    default_data.columns = default_data.columns.str.strip()
+            matrix = confusion_matrix(y_test, predictions)
+            fig, ax = plt.subplots()
 
-    X_live = default_data.drop(columns=["diagnosis"])
-    y_live = default_data["diagnosis"]
+            sns.heatmap(matrix, annot=True, fmt="d", cmap="coolwarm", ax=ax)
+            st.pyplot(fig)
 
-    if y_live.dtype == "object":
-        y_live = LabelEncoder().fit_transform(y_live)
 
-    numeric_cols = X_live.select_dtypes(include=np.number).columns
+            st.markdown("## Classification Report")
 
-    st.markdown("## Live Tumor Predictor")
+            report = classification_report(y_test, predictions, output_dict=True)
+            report_df = pd.DataFrame(report).transpose()
+            st.dataframe(report_df.round(4), use_container_width=True)
 
-    model_choice = st.selectbox(
-        "Select model",
-        [
-            "Logistic Regression", "Decision Tree", "KNN",
-            "Naive Bayes", "Random Forest", "XGBoost"
-        ]
-    )
 
-    st.markdown("### Enter Measurements")
+            st.markdown("## Insights")
 
-    input_data = {}
-    cols = st.columns(2)
+            col1, col2 = st.columns(2)
 
-    for i, col in enumerate(numeric_cols[:10]):
-        with cols[i % 2]:
-            input_data[col] = st.number_input(
-                col,
-                value=float(X_live[col].median())
-            )
+            with col1:
+                fig1, ax1 = plt.subplots()
+                data_frame["diagnosis"].value_counts().plot(kind="bar", ax=ax1)
+                st.pyplot(fig1)
 
-    if st.button("Predict"):
+            with col2:
+                numeric_df = data_frame.select_dtypes(include=np.number)
+                if numeric_df.shape[1] > 1:
+                    fig2, ax2 = plt.subplots(figsize=(6, 5))
+                    sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
+                    st.pyplot(fig2)
 
-        model = fetch_pipeline(model_choice, X_live)
-        model.fit(X_live, y_live)
+            col3, col4 = st.columns(2)
 
-        pred = model.predict(pd.DataFrame([input_data]))[0]
-        result = "Malignant (cancerous)" if pred == 1 else "Benign (non-cancerous)"
+            with col3:
+                if hasattr(trained_pipeline, "predict_proba"):
+                    prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
+                    fig3, ax3 = plt.subplots()
+                    ax3.hist(prob_values, bins=20)
+                    st.pyplot(fig3)
 
-        st.success(f"Prediction Result: {result}")
+            with col4:
+                error_flags = predictions != y_test
+                fig4, ax4 = plt.subplots()
+                ax4.bar(
+                    ["Correct", "Incorrect"],
+                    [(~error_flags).sum(), error_flags.sum()]
+                )
+                st.pyplot(fig4)
