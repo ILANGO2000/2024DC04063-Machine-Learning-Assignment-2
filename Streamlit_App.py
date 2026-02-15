@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -272,3 +273,46 @@ if data_frame is not None:
                 ax4.set_ylabel("Count")
                 ax4.legend()
                 st.pyplot(fig4)
+
+
+            # ---------------- MODEL INSIGHT SUMMARY ----------------
+            st.markdown("## Model Insight Summary")
+
+            total_cases = len(y_test)
+            error_count = (predictions != y_test).sum()
+            error_rate = error_count / total_cases
+
+            class_counts = data_frame["diagnosis"].value_counts()
+            imbalance_ratio = class_counts.max() / class_counts.min()
+
+            if auc_value is not None:
+                if auc_value > 0.90:
+                    auc_text = "excellent discrimination ability"
+                elif auc_value > 0.80:
+                    auc_text = "strong discrimination ability"
+                elif auc_value > 0.70:
+                    auc_text = "moderate discrimination ability"
+                else:
+                    auc_text = "limited discrimination ability"
+            else:
+                auc_text = "unknown discrimination ability"
+
+            if imbalance_ratio > 1.5:
+                balance_text = "The dataset exhibits class imbalance"
+            else:
+                balance_text = "The dataset is reasonably balanced"
+
+            st.write(
+                f"The selected {model_choice} model achieved an accuracy of {acc:.2%} "
+                f"with an error rate of {error_rate:.2%} on the test data."
+            )
+
+            st.write(
+                f"The ROC analysis indicates {auc_text}, demonstrating the model's "
+                f"ability to distinguish between malignant and benign tumor cases."
+            )
+
+            st.write(
+                f"{balance_text}. Misclassified instances observed in the error analysis "
+                f"should be reviewed to ensure reliable clinical interpretation."
+            )
