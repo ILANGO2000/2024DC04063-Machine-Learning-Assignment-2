@@ -40,14 +40,12 @@ data_source = st.radio(
     ["Use default data", "Upload your own data"]
 )
 
-# Initialize session storage
 if "data_frame" not in st.session_state:
     st.session_state["data_frame"] = None
 
 if "prev_source" not in st.session_state:
     st.session_state["prev_source"] = data_source
 
-# Clear dataset if source changes
 if st.session_state["prev_source"] != data_source:
     st.session_state["data_frame"] = None
     st.session_state["prev_source"] = data_source
@@ -92,7 +90,6 @@ if data_frame is not None:
 
     data_frame.columns = data_frame.columns.str.strip()
 
-    # Limit large datasets
     if len(data_frame) > 20000:
         data_frame = data_frame.sample(20000, random_state=42)
 
@@ -100,10 +97,16 @@ if data_frame is not None:
     st.dataframe(data_frame.head(), use_container_width=True)
 
 
-    # -------------------- TARGET SELECTION --------------------
+    # -------------------- TARGET SELECTION (DEFAULT diagnosis) --------------------
+    if "diagnosis" in data_frame.columns:
+        default_target_index = list(data_frame.columns).index("diagnosis")
+    else:
+        default_target_index = 0
+
     target_column = st.selectbox(
         "Choose the target variable",
-        data_frame.columns
+        data_frame.columns,
+        index=default_target_index
     )
 
     if target_column:
@@ -111,7 +114,6 @@ if data_frame is not None:
         feature_data = data_frame.drop(columns=[target_column])
         target_data = data_frame[target_column]
 
-        # Encode categorical target
         if target_data.dtype == "object":
             encoder = LabelEncoder()
             target_data = encoder.fit_transform(target_data)
@@ -169,7 +171,6 @@ if data_frame is not None:
 
                     predictions = trained_pipeline.predict(X_test)
 
-                    # ROC AUC
                     if hasattr(trained_pipeline, "predict_proba"):
                         probabilities = trained_pipeline.predict_proba(X_test)[:, 1]
                         auc_value = roc_auc_score(y_test, probabilities)
@@ -250,18 +251,12 @@ if data_frame is not None:
                 # ============================================================
                 st.markdown("## 🔎 Additional Insights for Tumor Classification")
 
-
                 # 1. TARGET DISTRIBUTION
-                st.subheader("Tumor Class Distribution")
-
                 fig1, ax1 = plt.subplots()
                 data_frame[target_column].value_counts().plot(kind="bar", ax=ax1)
                 st.pyplot(fig1)
 
-
                 # 2. CORRELATION HEATMAP
-                st.subheader("Feature Correlation Heatmap")
-
                 numeric_df = data_frame.select_dtypes(include=np.number)
 
                 if numeric_df.shape[1] > 1:
@@ -269,10 +264,7 @@ if data_frame is not None:
                     sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
                     st.pyplot(fig2)
 
-
                 # 3. FEATURE COMPARISON
-                st.subheader("Feature Distribution by Tumor Type")
-
                 numeric_cols = numeric_df.columns.tolist()
 
                 if numeric_cols:
@@ -289,20 +281,14 @@ if data_frame is not None:
                     )
                     st.pyplot(fig3)
 
-
                 # 4. PREDICTION CONFIDENCE
-                st.subheader("Prediction Confidence Distribution")
-
                 if hasattr(trained_pipeline, "predict_proba"):
                     prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
                     fig4, ax4 = plt.subplots()
                     ax4.hist(prob_values, bins=20)
                     st.pyplot(fig4)
 
-
                 # 5. ERROR ANALYSIS
-                st.subheader("Prediction Error Analysis")
-
                 error_flags = predictions != y_test
 
                 fig5, ax5 = plt.subplots()
@@ -311,3 +297,48 @@ if data_frame is not None:
                     [(~error_flags).sum(), error_flags.sum()]
                 )
                 st.pyplot(fig5)
+
+
+                # ============================================================
+                # MODEL FINDINGS SUMMARY (RIGHT PANE)
+                # ============================================================
+                st.markdown("## 📌 Model Findings Summary")
+
+                main_col, summary_col = st.columns([3, 2])
+
+                with summary_col:
+
+                    st.markdown("### 🧠 Clinical Interpretation")
+
+                    class_counts = data_frame[target_column].value_counts()
+                    imbalance_ratio = class_counts.max() / class_counts.min()
+
+                    balance_text = (
+                        "The dataset shows class imbalance"
+                        if imbalance_ratio > 1.5
+                        else "The dataset is relatively balanced"
+                    )
+
+                    error_rate = 1 - acc
+
+                    if auc_value is not None:
+                        if auc_value > 0.85:
+                            discrimination_text = "strong discrimination ability"
+                        elif auc_value > 0.70:
+                            discrimination_text = "moderate discrimination ability"
+                        else:
+                            discrimination_text = "limited discrimination ability"
+                    else:
+                        discrimination_text = "unknown discrimination ability"
+
+                    st.write(
+                        f"• The selected model achieved an accuracy of {acc:.2%} with an error rate of {error_rate:.2%}, indicating reliable tumor classification performance."
+                    )
+
+                    st.write(
+                        f"• The model demonstrates {discrimination_text}, suggesting effectiveness in distinguishing malignant from benign tumors."
+                    )
+
+                    st.write(
+                        f"• {balance_text}, and misclassified cases should be clinically reviewed for safety."
+                    )
