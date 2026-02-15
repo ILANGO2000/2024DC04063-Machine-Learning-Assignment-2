@@ -216,103 +216,65 @@ if data_frame is not None:
                     st.pyplot(fig_roc)
 
 
-            st.markdown("## Classification Report")
+# ============================================================
+# LIVE TUMOR PREDICTOR (ADDED COMPONENT)
+# ============================================================
 
-            report = classification_report(y_test, predictions, output_dict=True)
-            report_df = pd.DataFrame(report).transpose()
-            st.dataframe(report_df.round(4), use_container_width=True)
+st.markdown("---")
+st.markdown("## Live Tumor Predictor")
 
+try:
+    live_data = pd.read_csv("Data.csv")
+    live_data.columns = live_data.columns.str.strip()
 
-            st.markdown("## Insights")
+    X_live = live_data.drop(columns=["diagnosis"])
+    y_live = live_data["diagnosis"]
 
-            col1, col2 = st.columns(2)
+    if y_live.dtype == "object":
+        y_live = LabelEncoder().fit_transform(y_live)
 
-            with col1:
-                st.container(border=True)
-                fig1, ax1 = plt.subplots()
-                data_frame["diagnosis"].value_counts().plot(kind="bar", ax=ax1, legend=True)
-                ax1.set_title("Tumor Class Distribution")
-                ax1.set_xlabel("Class")
-                ax1.set_ylabel("Count")
-                st.pyplot(fig1)
+    numeric_cols = X_live.select_dtypes(include=np.number).columns
 
-            with col2:
-                st.container(border=True)
-                numeric_df = data_frame.select_dtypes(include=np.number)
-                if numeric_df.shape[1] > 1:
-                    fig2, ax2 = plt.subplots(figsize=(6, 5))
-                    sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
-                    ax2.set_title("Feature Correlation Heatmap")
-                    st.pyplot(fig2)
+    model_choice_live = st.selectbox(
+        "Select model for prediction",
+        [
+            "Logistic Regression",
+            "Decision Tree",
+            "KNN",
+            "Naive Bayes",
+            "Random Forest",
+            "XGBoost"
+        ],
+        key="live_model"
+    )
 
-            col3, col4 = st.columns(2)
+    st.markdown("### Enter Tumor Measurements")
 
-            with col3:
-                st.container(border=True)
-                if hasattr(trained_pipeline, "predict_proba"):
-                    prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
-                    fig3, ax3 = plt.subplots()
-                    ax3.hist(prob_values, bins=20, label="Probability")
-                    ax3.set_title("Prediction Confidence")
-                    ax3.set_xlabel("Predicted Probability")
-                    ax3.set_ylabel("Frequency")
-                    ax3.legend()
-                    st.pyplot(fig3)
+    input_values = {}
+    cols = st.columns(2)
 
-            with col4:
-                st.container(border=True)
-                error_flags = predictions != y_test
-                fig4, ax4 = plt.subplots()
-                ax4.bar(
-                    ["Correct", "Incorrect"],
-                    [(~error_flags).sum(), error_flags.sum()],
-                    label="Counts"
-                )
-                ax4.set_title("Prediction Error")
-                ax4.set_xlabel("Outcome")
-                ax4.set_ylabel("Count")
-                ax4.legend()
-                st.pyplot(fig4)
-
-
-            # ---------------- MODEL INSIGHT SUMMARY ----------------
-            st.markdown("## Model Insight Summary")
-
-            total_cases = len(y_test)
-            error_count = (predictions != y_test).sum()
-            error_rate = error_count / total_cases
-
-            class_counts = data_frame["diagnosis"].value_counts()
-            imbalance_ratio = class_counts.max() / class_counts.min()
-
-            if auc_value is not None:
-                if auc_value > 0.90:
-                    auc_text = "excellent discrimination ability"
-                elif auc_value > 0.80:
-                    auc_text = "strong discrimination ability"
-                elif auc_value > 0.70:
-                    auc_text = "moderate discrimination ability"
-                else:
-                    auc_text = "limited discrimination ability"
-            else:
-                auc_text = "unknown discrimination ability"
-
-            if imbalance_ratio > 1.5:
-                balance_text = "The dataset exhibits class imbalance"
-            else:
-                balance_text = "The dataset is reasonably balanced"
-
-            st.write(
-                f"The selected {model_choice} model achieved an accuracy of {acc:.2%} "
-                f"with an error rate of {error_rate:.2%} on the test data."
+    for i, col in enumerate(numeric_cols[:10]):
+        with cols[i % 2]:
+            input_values[col] = st.number_input(
+                col,
+                value=float(X_live[col].median()),
+                key=f"live_{col}"
             )
 
-            st.write(
-                f"The ROC analysis indicates {auc_text}, demonstrating the model's "
-                f"ability to distinguish between malignant and benign tumor cases."
-            )
+    if st.button("Predict Tumor Type"):
 
-            st.write(
-                f"{balance_text}. Misclassified instances observed in the error analysis "
-                f"should be reviewed to ensure reliable clinical interpretation."
-            )
+        model_live = fetch_pipeline(model_choice_live, X_live)
+        model_live.fit(X_live, y_live)
+
+        prediction = model_live.predict(pd.DataFrame([input_values]))[0]
+
+        result = (
+            "Malignant (cancerous)"
+            if prediction == 1
+            else "Benign (non-cancerous)"
+        )
+
+        st.success(f"Prediction Result: {result}")
+
+except:
+    st.warning("Default dataset not available for live prediction")
