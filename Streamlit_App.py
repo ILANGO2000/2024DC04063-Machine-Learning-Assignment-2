@@ -272,3 +272,102 @@ if data_frame is not None:
                 ax4.set_ylabel("Count")
                 ax4.legend()
                 st.pyplot(fig4)
+
+
+# ============================================================
+# LIVE PREDICTOR COMPONENTS (SEPARATE)
+# ============================================================
+
+try:
+    default_data = pd.read_csv("Data.csv")
+    default_data.columns = default_data.columns.str.strip()
+
+    if "diagnosis" in default_data.columns:
+
+        X_live = default_data.drop(columns=["diagnosis"])
+        y_live = default_data["diagnosis"]
+
+        if y_live.dtype == "object":
+            le_live = LabelEncoder()
+            y_live = le_live.fit_transform(y_live)
+
+        numeric_cols = X_live.select_dtypes(include=np.number).columns
+
+
+        st.sidebar.markdown("## Live Tumor Predictor")
+
+        model_choice_sb = st.sidebar.selectbox(
+            "Model",
+            [
+                "Logistic Regression",
+                "Decision Tree",
+                "KNN",
+                "Naive Bayes",
+                "Random Forest",
+                "XGBoost"
+            ],
+            key="sb_model"
+        )
+
+        sb_inputs = {}
+        for col in numeric_cols[:10]:
+            sb_inputs[col] = st.sidebar.number_input(
+                col,
+                value=float(X_live[col].median()),
+                key=f"sb_{col}"
+            )
+
+        if st.sidebar.button("Predict", key="sb_predict"):
+
+            model_sb = fetch_pipeline(model_choice_sb, X_live)
+            model_sb.fit(X_live, y_live)
+
+            pred = model_sb.predict(pd.DataFrame([sb_inputs]))[0]
+            result = "Malignant (cancerous)" if pred == 1 else "Benign (non-cancerous)"
+            st.sidebar.success(result)
+
+
+        st.markdown("---")
+        st.markdown("## Live Tumor Predictor Panel")
+
+        left_p, right_p = st.columns([2, 1])
+
+        with left_p:
+
+            model_choice_panel = st.selectbox(
+                "Select model for prediction",
+                [
+                    "Logistic Regression",
+                    "Decision Tree",
+                    "KNN",
+                    "Naive Bayes",
+                    "Random Forest",
+                    "XGBoost"
+                ],
+                key="panel_model"
+            )
+
+            panel_inputs = {}
+            cols = st.columns(2)
+
+            for i, col in enumerate(numeric_cols[:10]):
+                with cols[i % 2]:
+                    panel_inputs[col] = st.number_input(
+                        col,
+                        value=float(X_live[col].median()),
+                        key=f"pn_{col}"
+                    )
+
+            if st.button("Predict Tumor Type", key="panel_predict"):
+
+                model_panel = fetch_pipeline(model_choice_panel, X_live)
+                model_panel.fit(X_live, y_live)
+
+                pred = model_panel.predict(pd.DataFrame([panel_inputs]))[0]
+                result = "Malignant (cancerous)" if pred == 1 else "Benign (non-cancerous)"
+
+                with right_p:
+                    st.metric("Prediction Result", result)
+
+except:
+    st.warning("Default dataset not available for live prediction")
