@@ -26,6 +26,116 @@ st.set_page_config(page_title="Breast Cancer Diagnostic Dashboard", layout="wide
 st.title("Breast Cancer Diagnostic Dashboard")
 
 
+# ==========================================================
+# 🔮 LIVE PREDICTOR (PRETRAINED — TOP COMPONENT)
+# ==========================================================
+
+st.markdown("## 🔮 Live Tumor Diagnosis Predictor")
+
+try:
+    live_data = pd.read_csv("Data.csv")
+    live_data.columns = live_data.columns.str.strip()
+
+    if "id" in live_data.columns:
+        live_data = live_data.drop(columns=["id"])
+
+    if "diagnosis" not in live_data.columns:
+        st.error("Column 'diagnosis' not found in default dataset")
+    else:
+        X_live = live_data.drop(columns=["diagnosis"])
+        y_live = live_data["diagnosis"]
+
+        if y_live.dtype == "object":
+            y_live = LabelEncoder().fit_transform(y_live)
+
+        model_list = [
+            "Logistic Regression",
+            "Decision Tree",
+            "KNN",
+            "Naive Bayes",
+            "Random Forest",
+            "XGBoost"
+        ]
+
+        live_model_name = st.selectbox(
+            "Select Model for Live Prediction",
+            model_list,
+            key="live_model"
+        )
+
+        # Select top correlated numeric features
+        numeric_df = X_live.select_dtypes(include=np.number)
+
+        temp_df = numeric_df.copy()
+        temp_df["target"] = y_live
+
+        corr_values = (
+            temp_df.corr()["target"]
+            .abs()
+            .sort_values(ascending=False)
+        )
+
+        top_features = corr_values.index[1:6]
+
+        st.markdown("### Enter Tumor Measurements")
+
+        input_data = {}
+        cols = st.columns(3)
+
+        for i, feature in enumerate(top_features):
+            with cols[i % 3]:
+                min_val = float(X_live[feature].min())
+                max_val = float(X_live[feature].max())
+                mean_val = float(X_live[feature].mean())
+
+                input_data[feature] = st.slider(
+                    feature,
+                    min_value=min_val,
+                    max_value=max_val,
+                    value=mean_val,
+                    key=f"live_{feature}"
+                )
+
+        if st.button("Predict Tumor Type"):
+
+            live_model = fetch_pipeline(live_model_name, X_live)
+            live_model.fit(X_live, y_live)
+
+            input_df = pd.DataFrame([input_data])
+
+            for col in X_live.columns:
+                if col not in input_df.columns:
+                    input_df[col] = X_live[col].median()
+
+            input_df = input_df[X_live.columns]
+
+            prediction = live_model.predict(input_df)[0]
+
+            if hasattr(live_model, "predict_proba"):
+                probability = live_model.predict_proba(input_df)[0][1]
+            else:
+                probability = None
+
+            c1, c2 = st.columns([2, 1])
+
+            if prediction == 1:
+                c1.error("Predicted Diagnosis: Malignant")
+            else:
+                c1.success("Predicted Diagnosis: Benign")
+
+            if probability is not None:
+                c2.metric("Malignancy Probability", f"{probability:.2%}")
+
+except:
+    st.warning("Default dataset not available for live prediction")
+
+st.markdown("---")
+
+
+# ==========================================================
+# ORIGINAL DASHBOARD CODE (UNCHANGED)
+# ==========================================================
+
 st.markdown("## Dataset Selection")
 
 data_source = st.radio(
@@ -43,8 +153,6 @@ if st.session_state["prev_source"] != data_source:
     st.session_state["data_frame"] = None
     st.session_state["prev_source"] = data_source
 
-
-# ================= DATA LOADING =================
 
 if data_source == "Use default data":
 
@@ -65,8 +173,6 @@ else:
 
 data_frame = st.session_state["data_frame"]
 
-
-# ================= MAIN WORKFLOW =================
 
 if data_frame is not None:
 
@@ -95,104 +201,19 @@ if data_frame is not None:
         random_state=42
     )
 
-    # ==========================================================
-    # 🔮 LIVE TUMOR DIAGNOSIS PREDICTOR (SEPARATE COMPONENT)
-    # ==========================================================
-    st.markdown("---")
-    st.markdown("## 🔮 Live Tumor Diagnosis Predictor")
-
-    model_list = [
-        "Logistic Regression",
-        "Decision Tree",
-        "KNN",
-        "Naive Bayes",
-        "Random Forest",
-        "XGBoost"
-    ]
-
-    live_model_name = st.selectbox(
-        "Select Model for Live Prediction",
-        model_list,
-        key="live_model_select"
-    )
-
-    # Select most informative features automatically
-    numeric_df = data_frame.select_dtypes(include=np.number)
-
-    temp_df = numeric_df.copy()
-    temp_df["target"] = target_data
-
-    corr_values = (
-        temp_df.corr()["target"]
-        .abs()
-        .sort_values(ascending=False)
-    )
-
-    top_features = corr_values.index[1:6]
-
-    st.markdown("### Adjust Feature Values")
-
-    input_data = {}
-    cols = st.columns(3)
-
-    for i, feature in enumerate(top_features):
-        with cols[i % 3]:
-            min_val = float(data_frame[feature].min())
-            max_val = float(data_frame[feature].max())
-            mean_val = float(data_frame[feature].mean())
-
-            input_data[feature] = st.slider(
-                feature,
-                min_value=min_val,
-                max_value=max_val,
-                value=mean_val,
-                key=f"live_slider_{feature}"
-            )
-
-    live_model = fetch_pipeline(live_model_name, X_train)
-    live_model.fit(X_train, y_train)
-
-    if st.button("Predict Diagnosis", key="live_predict_btn"):
-
-        input_df = pd.DataFrame([input_data])
-
-        # Fill missing columns expected by pipeline
-        for col in feature_data.columns:
-            if col not in input_df.columns:
-                input_df[col] = 0
-
-        input_df = input_df[feature_data.columns]
-
-        prediction = live_model.predict(input_df)[0]
-
-        if hasattr(live_model, "predict_proba"):
-            probability = live_model.predict_proba(input_df)[0][1]
-        else:
-            probability = None
-
-        st.markdown("### 🔎 Prediction Result")
-
-        c1, c2 = st.columns([2, 1])
-
-        if prediction == 1:
-            c1.error("Predicted Diagnosis: Malignant")
-        else:
-            c1.success("Predicted Diagnosis: Benign")
-
-        if probability is not None:
-            c2.metric("Malignancy Probability", f"{probability:.2%}")
-
-    st.markdown("---")
-
-    # ==========================================================
-    # ORIGINAL DASHBOARD LOGIC (UNCHANGED)
-    # ==========================================================
 
     if data_source == "Use default data":
 
         st.markdown("## Model Comparison on Default Dataset")
 
-        models_list = model_list
+        models_list = [
+            "Logistic Regression",
+            "Decision Tree",
+            "KNN",
+            "Naive Bayes",
+            "Random Forest",
+            "XGBoost"
+        ]
 
         results = []
 
@@ -228,12 +249,19 @@ if data_frame is not None:
 
         st.dataframe(styled, use_container_width=True)
 
+
     else:
 
         model_choice = st.selectbox(
             "Choose a classification algorithm",
-            model_list,
-            key="upload_model_select"
+            [
+                "Logistic Regression",
+                "Decision Tree",
+                "KNN",
+                "Naive Bayes",
+                "Random Forest",
+                "XGBoost"
+            ]
         )
 
         if st.button("Run Model"):
@@ -271,28 +299,3 @@ if data_frame is not None:
 
             if auc_value is not None:
                 st.metric("ROC AUC", f"{auc_value:.4f}")
-
-
-            st.markdown("## Evaluation Plots")
-
-            left, right = st.columns(2)
-
-            with left:
-                st.subheader("Confusion Matrix")
-                matrix = confusion_matrix(y_test, predictions)
-                fig_cm, ax_cm = plt.subplots()
-                sns.heatmap(matrix, annot=True, fmt="d", cmap="coolwarm", ax=ax_cm)
-                ax_cm.set_xlabel("Predicted Label")
-                ax_cm.set_ylabel("Actual Label")
-                st.pyplot(fig_cm)
-
-            with right:
-                st.subheader("ROC Curve")
-                if fpr is not None:
-                    fig_roc, ax_roc = plt.subplots()
-                    ax_roc.plot(fpr, tpr, label=f"AUC = {auc_value:.3f}")
-                    ax_roc.plot([0, 1], [0, 1], linestyle="--")
-                    ax_roc.set_xlabel("False Positive Rate")
-                    ax_roc.set_ylabel("True Positive Rate")
-                    ax_roc.legend()
-                    st.pyplot(fig_roc)
