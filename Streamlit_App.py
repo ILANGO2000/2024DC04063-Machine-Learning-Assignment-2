@@ -1,9 +1,6 @@
-# -------------------- IMPORTS --------------------
 import streamlit as st
-
 import pandas as pd
 import numpy as np
-
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -23,15 +20,9 @@ from sklearn.metrics import (
 from models import fetch_pipeline
 
 
-# -------------------- PAGE CONFIG --------------------
 st.set_page_config(page_title="Breast Cancer Diagnostic Dashboard", layout="wide")
-
 st.title("Breast Cancer Diagnostic Dashboard")
 
-
-# ============================================================
-# DATA SOURCE SELECTION (SESSION STATE FIX)
-# ============================================================
 
 st.markdown("## Dataset Selection")
 
@@ -51,7 +42,6 @@ if st.session_state["prev_source"] != data_source:
     st.session_state["prev_source"] = data_source
 
 
-# ---------- DEFAULT DATA ----------
 if data_source == "Use default data":
 
     if st.button("Load Default Dataset"):
@@ -61,8 +51,6 @@ if data_source == "Use default data":
         except:
             st.error("Default dataset not found in repository")
 
-
-# ---------- UPLOAD DATA ----------
 else:
 
     uploaded_csv = st.file_uploader(
@@ -75,16 +63,8 @@ else:
         st.success("Uploaded dataset loaded successfully")
 
 
-# ============================================================
-# USE DATA FROM SESSION STATE
-# ============================================================
-
 data_frame = st.session_state["data_frame"]
 
-
-# ============================================================
-# MAIN WORKFLOW
-# ============================================================
 
 if data_frame is not None:
 
@@ -97,7 +77,6 @@ if data_frame is not None:
     st.dataframe(data_frame.head(), use_container_width=True)
 
 
-    # -------------------- TARGET SELECTION (DEFAULT diagnosis) --------------------
     if "diagnosis" in data_frame.columns:
         default_target_index = list(data_frame.columns).index("diagnosis")
     else:
@@ -119,7 +98,6 @@ if data_frame is not None:
             target_data = encoder.fit_transform(target_data)
 
 
-        # -------------------- MODEL SELECTION --------------------
         model_choice = st.selectbox(
             "Choose a classification algorithm",
             [
@@ -138,7 +116,6 @@ if data_frame is not None:
         )
 
 
-        # -------------------- TRAIN TEST SPLIT --------------------
         X_train, X_test, y_train, y_test = train_test_split(
             feature_data,
             target_data,
@@ -147,7 +124,6 @@ if data_frame is not None:
         )
 
 
-        # ==================== REFRESH MODEL ====================
         if st.button("Refresh Model"):
 
             st.session_state["pipeline_model"] = fetch_pipeline(
@@ -158,7 +134,6 @@ if data_frame is not None:
             st.success("Model refreshed successfully")
 
 
-        # ==================== APPLY MODEL ====================
         if "pipeline_model" in st.session_state:
 
             if st.button("Apply Model"):
@@ -166,9 +141,7 @@ if data_frame is not None:
                 with st.spinner("Model is running. Please wait..."):
 
                     trained_pipeline = st.session_state["pipeline_model"]
-
                     trained_pipeline.fit(X_train, y_train)
-
                     predictions = trained_pipeline.predict(X_test)
 
                     if hasattr(trained_pipeline, "predict_proba"):
@@ -177,8 +150,6 @@ if data_frame is not None:
                     else:
                         auc_value = None
 
-
-                    # -------------------- METRICS --------------------
                     acc = accuracy_score(y_test, predictions)
                     prec = precision_score(y_test, predictions, average="weighted")
                     rec = recall_score(y_test, predictions, average="weighted")
@@ -194,7 +165,6 @@ if data_frame is not None:
                     )
 
 
-                # ==================== MODEL PERFORMANCE ====================
                 st.markdown("## Model Evaluation")
 
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -210,11 +180,9 @@ if data_frame is not None:
                     st.metric("ROC AUC", f"{auc_value:.4f}")
 
 
-                # ==================== CONFUSION MATRIX ====================
                 st.markdown("## Confusion Matrix")
 
                 matrix = confusion_matrix(y_test, predictions)
-
                 fig_cm, ax_cm = plt.subplots()
 
                 sns.heatmap(
@@ -223,16 +191,15 @@ if data_frame is not None:
                     fmt="d",
                     cmap="coolwarm",
                     linewidths=1,
-                    linecolor="black"
+                    linecolor="black",
+                    ax=ax_cm
                 )
 
-                ax_cm.set_xlabel("Predicted Label")
-                ax_cm.set_ylabel("Actual Label")
-
+                ax_cm.set_xlabel("Predicted")
+                ax_cm.set_ylabel("Actual")
                 st.pyplot(fig_cm)
 
 
-                # ==================== CLASSIFICATION REPORT ====================
                 st.markdown("## Detailed Classification Report")
 
                 report_dict = classification_report(
@@ -242,103 +209,79 @@ if data_frame is not None:
                 )
 
                 report_df = pd.DataFrame(report_dict).transpose()
-
                 st.dataframe(report_df.round(4), use_container_width=True)
 
 
-                # ============================================================
-                # ADDITIONAL INSIGHTS
-                # ============================================================
-                st.markdown("## 🔎 Additional Insights for Tumor Classification")
+                st.markdown("## Additional Insights")
 
-                # 1. TARGET DISTRIBUTION
-                fig1, ax1 = plt.subplots()
-                data_frame[target_column].value_counts().plot(kind="bar", ax=ax1)
-                st.pyplot(fig1)
+                col1, col2 = st.columns(2)
 
-                # 2. CORRELATION HEATMAP
-                numeric_df = data_frame.select_dtypes(include=np.number)
+                with col1:
+                    st.subheader("Tumor Class Distribution")
+                    fig1, ax1 = plt.subplots()
+                    data_frame[target_column].value_counts().plot(kind="bar", ax=ax1)
+                    st.pyplot(fig1)
 
-                if numeric_df.shape[1] > 1:
-                    fig2, ax2 = plt.subplots(figsize=(8, 6))
-                    sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
-                    st.pyplot(fig2)
+                with col2:
+                    st.subheader("Feature Correlation")
+                    numeric_df = data_frame.select_dtypes(include=np.number)
+                    if numeric_df.shape[1] > 1:
+                        fig2, ax2 = plt.subplots(figsize=(6, 5))
+                        sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
+                        st.pyplot(fig2)
 
-                # 3. FEATURE COMPARISON
-                numeric_cols = numeric_df.columns.tolist()
+                col3, col4 = st.columns(2)
 
-                if numeric_cols:
-                    selected_feature = st.selectbox(
-                        "Select a feature to compare",
-                        numeric_cols
-                    )
+                with col3:
+                    st.subheader("Prediction Confidence")
+                    if hasattr(trained_pipeline, "predict_proba"):
+                        prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
+                        fig3, ax3 = plt.subplots()
+                        ax3.hist(prob_values, bins=20)
+                        st.pyplot(fig3)
 
-                    fig3, ax3 = plt.subplots()
-                    sns.boxplot(
-                        x=data_frame[target_column],
-                        y=data_frame[selected_feature],
-                        ax=ax3
-                    )
-                    st.pyplot(fig3)
-
-                # 4. PREDICTION CONFIDENCE
-                if hasattr(trained_pipeline, "predict_proba"):
-                    prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
+                with col4:
+                    st.subheader("Prediction Error")
+                    error_flags = predictions != y_test
                     fig4, ax4 = plt.subplots()
-                    ax4.hist(prob_values, bins=20)
+                    ax4.bar(
+                        ["Correct", "Incorrect"],
+                        [(~error_flags).sum(), error_flags.sum()]
+                    )
                     st.pyplot(fig4)
 
-                # 5. ERROR ANALYSIS
-                error_flags = predictions != y_test
 
-                fig5, ax5 = plt.subplots()
-                ax5.bar(
-                    ["Correct Predictions", "Incorrect Predictions"],
-                    [(~error_flags).sum(), error_flags.sum()]
+                st.markdown("## Model Findings Summary")
+
+                class_counts = data_frame[target_column].value_counts()
+                imbalance_ratio = class_counts.max() / class_counts.min()
+
+                balance_text = (
+                    "Dataset shows class imbalance"
+                    if imbalance_ratio > 1.5
+                    else "Dataset is relatively balanced"
                 )
-                st.pyplot(fig5)
 
+                error_rate = 1 - acc
 
-                # ============================================================
-                # MODEL FINDINGS SUMMARY (RIGHT PANE)
-                # ============================================================
-                st.markdown("## 📌 Model Findings Summary")
-
-                main_col, summary_col = st.columns([3, 2])
-
-                with summary_col:
-
-                    st.markdown("### 🧠 Clinical Interpretation")
-
-                    class_counts = data_frame[target_column].value_counts()
-                    imbalance_ratio = class_counts.max() / class_counts.min()
-
-                    balance_text = (
-                        "The dataset shows class imbalance"
-                        if imbalance_ratio > 1.5
-                        else "The dataset is relatively balanced"
-                    )
-
-                    error_rate = 1 - acc
-
-                    if auc_value is not None:
-                        if auc_value > 0.85:
-                            discrimination_text = "strong discrimination ability"
-                        elif auc_value > 0.70:
-                            discrimination_text = "moderate discrimination ability"
-                        else:
-                            discrimination_text = "limited discrimination ability"
+                if auc_value is not None:
+                    if auc_value > 0.85:
+                        discrimination_text = "strong discrimination ability"
+                    elif auc_value > 0.70:
+                        discrimination_text = "moderate discrimination ability"
                     else:
-                        discrimination_text = "unknown discrimination ability"
+                        discrimination_text = "limited discrimination ability"
+                else:
+                    discrimination_text = "unknown discrimination ability"
 
-                    st.write(
-                        f"• The selected model achieved an accuracy of {acc:.2%} with an error rate of {error_rate:.2%}, indicating reliable tumor classification performance."
-                    )
+                st.write(
+                    f"• The model achieved {acc:.2%} accuracy with {error_rate:.2%} error, indicating reliable tumor classification."
+                )
 
-                    st.write(
-                        f"• The model demonstrates {discrimination_text}, suggesting effectiveness in distinguishing malignant from benign tumors."
-                    )
+                st.write(
+                    f"• The model shows {discrimination_text} in distinguishing malignant and benign tumors."
+                )
 
-                    st.write(
-                        f"• {balance_text}, and misclassified cases should be clinically reviewed for safety."
-                    )
+                st.write(
+                    f"• {balance_text}, and misclassified cases should be reviewed for clinical caution."
+                )
