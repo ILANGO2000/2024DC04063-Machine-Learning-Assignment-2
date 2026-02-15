@@ -196,3 +196,115 @@ if uploaded_csv is not None:
                     report_df.round(4),
                     use_container_width=True
                 )
+
+
+                # ============================================================
+                # ADDITIONAL CLINICAL INSIGHTS DASHBOARD
+                # ============================================================
+
+                st.markdown("## 🔎 Additional Insights for Tumor Classification")
+
+
+                # ---------- 1. TARGET DISTRIBUTION ----------
+                st.subheader("Tumor Class Distribution")
+
+                fig1, ax1 = plt.subplots()
+
+                data_frame[target_column].value_counts().plot(
+                    kind="bar",
+                    ax=ax1
+                )
+
+                ax1.set_xlabel("Tumor Type")
+                ax1.set_ylabel("Number of Cases")
+                ax1.set_title("Distribution of Malignant vs Benign Tumors")
+
+                st.pyplot(fig1)
+
+
+                # ---------- 2. CORRELATION HEATMAP ----------
+                st.subheader("Feature Correlation Heatmap")
+
+                numeric_df = data_frame.select_dtypes(include=np.number)
+
+                if numeric_df.shape[1] > 1:
+
+                    corr_matrix = numeric_df.corr()
+
+                    fig2, ax2 = plt.subplots(figsize=(8, 6))
+
+                    sns.heatmap(
+                        corr_matrix,
+                        cmap="viridis",
+                        ax=ax2
+                    )
+
+                    ax2.set_title("Correlation Between Tumor Features")
+
+                    st.pyplot(fig2)
+
+
+                # ---------- 3. FEATURE COMPARISON ----------
+                st.subheader("Feature Distribution by Tumor Type")
+
+                numeric_cols = numeric_df.columns.tolist()
+
+                if len(numeric_cols) > 0:
+
+                    selected_feature = st.selectbox(
+                        "Select a feature to compare",
+                        numeric_cols
+                    )
+
+                    fig3, ax3 = plt.subplots()
+
+                    sns.boxplot(
+                        x=data_frame[target_column],
+                        y=data_frame[selected_feature],
+                        ax=ax3
+                    )
+
+                    ax3.set_xlabel("Tumor Type")
+                    ax3.set_ylabel(selected_feature)
+                    ax3.set_title("Feature Comparison Across Classes")
+
+                    st.pyplot(fig3)
+
+
+                # ---------- 4. PREDICTION CONFIDENCE ----------
+                st.subheader("Prediction Confidence Distribution")
+
+                if hasattr(trained_pipeline, "predict_proba"):
+
+                    prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
+
+                    fig4, ax4 = plt.subplots()
+
+                    ax4.hist(prob_values, bins=20)
+
+                    ax4.set_xlabel("Probability of Malignant Tumor")
+                    ax4.set_ylabel("Number of Patients")
+                    ax4.set_title("Model Prediction Confidence")
+
+                    st.pyplot(fig4)
+
+
+                # ---------- 5. ERROR ANALYSIS ----------
+                st.subheader("Prediction Error Analysis")
+
+                error_flags = predictions != y_test
+
+                fig5, ax5 = plt.subplots()
+
+                ax5.bar(
+                    ["Correct Predictions", "Incorrect Predictions"],
+                    [
+                        (~error_flags).sum(),
+                        error_flags.sum()
+                    ]
+                )
+
+                ax5.set_ylabel("Number of Cases")
+                ax5.set_title("Model Accuracy Breakdown")
+
+                st.pyplot(fig5)
