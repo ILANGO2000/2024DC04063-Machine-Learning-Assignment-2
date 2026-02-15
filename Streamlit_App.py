@@ -217,23 +217,25 @@ if data_frame is not None:
 
 
 # ============================================================
-# LIVE TUMOR PREDICTOR (ADDED COMPONENT)
+# LIVE TUMOR PREDICTOR (FIXED)
 # ============================================================
 
 st.markdown("---")
 st.markdown("## Live Tumor Predictor")
 
-try:
-    live_data = pd.read_csv("Data.csv")
-    live_data.columns = live_data.columns.str.strip()
+if data_frame is not None:
 
-    X_live = live_data.drop(columns=["diagnosis"])
-    y_live = live_data["diagnosis"]
+    X_live = data_frame.drop(columns=["diagnosis"])
+    y_live = data_frame["diagnosis"]
 
     if y_live.dtype == "object":
         y_live = LabelEncoder().fit_transform(y_live)
 
     numeric_cols = X_live.select_dtypes(include=np.number).columns
+
+    # Remove ID-like columns
+    id_like = [c for c in numeric_cols if "id" in c.lower()]
+    numeric_cols = [c for c in numeric_cols if c not in id_like]
 
     model_choice_live = st.selectbox(
         "Select model for prediction",
@@ -261,7 +263,7 @@ try:
                 key=f"live_{col}"
             )
 
-    if st.button("Predict Tumor Type"):
+    if st.button("Predict Tumor Type", key="live_predict"):
 
         model_live = fetch_pipeline(model_choice_live, X_live)
         model_live.fit(X_live, y_live)
@@ -276,5 +278,5 @@ try:
 
         st.success(f"Prediction Result: {result}")
 
-except:
-    st.warning("Default dataset not available for live prediction")
+else:
+    st.info("Load or upload a dataset to enable live prediction")
