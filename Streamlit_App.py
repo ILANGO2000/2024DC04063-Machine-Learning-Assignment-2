@@ -30,8 +30,9 @@ st.title("Breast Cancer Diagnostic Dashboard")
 
 
 # ============================================================
-# DATA SOURCE SELECTION
+# DATA SOURCE SELECTION (SESSION STATE FIX)
 # ============================================================
+
 st.markdown("## Dataset Selection")
 
 data_source = st.radio(
@@ -39,23 +40,31 @@ data_source = st.radio(
     ["Use default data", "Upload your own data"]
 )
 
-data_frame = None
+# Initialize session storage
+if "data_frame" not in st.session_state:
+    st.session_state["data_frame"] = None
+
+if "prev_source" not in st.session_state:
+    st.session_state["prev_source"] = data_source
+
+# Clear dataset if source changes
+if st.session_state["prev_source"] != data_source:
+    st.session_state["data_frame"] = None
+    st.session_state["prev_source"] = data_source
 
 
-# ==================== DEFAULT DATA ====================
+# ---------- DEFAULT DATA ----------
 if data_source == "Use default data":
 
     if st.button("Load Default Dataset"):
-
         try:
-            data_frame = pd.read_csv("Data.csv")
+            st.session_state["data_frame"] = pd.read_csv("Data.csv")
             st.success("Default dataset loaded successfully")
-
         except:
             st.error("Default dataset not found in repository")
 
 
-# ==================== UPLOAD DATA ====================
+# ---------- UPLOAD DATA ----------
 else:
 
     uploaded_csv = st.file_uploader(
@@ -64,13 +73,21 @@ else:
     )
 
     if uploaded_csv is not None:
-        data_frame = pd.read_csv(uploaded_csv)
+        st.session_state["data_frame"] = pd.read_csv(uploaded_csv)
         st.success("Uploaded dataset loaded successfully")
 
 
 # ============================================================
-# MAIN WORKFLOW (IF DATA AVAILABLE)
+# USE DATA FROM SESSION STATE
 # ============================================================
+
+data_frame = st.session_state["data_frame"]
+
+
+# ============================================================
+# MAIN WORKFLOW
+# ============================================================
+
 if data_frame is not None:
 
     data_frame.columns = data_frame.columns.str.strip()
@@ -229,95 +246,68 @@ if data_frame is not None:
 
 
                 # ============================================================
-                # ADDITIONAL CLINICAL INSIGHTS
+                # ADDITIONAL INSIGHTS
                 # ============================================================
                 st.markdown("## 🔎 Additional Insights for Tumor Classification")
 
 
-                # ---------- 1. TARGET DISTRIBUTION ----------
+                # 1. TARGET DISTRIBUTION
                 st.subheader("Tumor Class Distribution")
 
                 fig1, ax1 = plt.subplots()
-
-                data_frame[target_column].value_counts().plot(
-                    kind="bar",
-                    ax=ax1
-                )
-
-                ax1.set_xlabel("Tumor Type")
-                ax1.set_ylabel("Number of Cases")
-
+                data_frame[target_column].value_counts().plot(kind="bar", ax=ax1)
                 st.pyplot(fig1)
 
 
-                # ---------- 2. CORRELATION HEATMAP ----------
+                # 2. CORRELATION HEATMAP
                 st.subheader("Feature Correlation Heatmap")
 
                 numeric_df = data_frame.select_dtypes(include=np.number)
 
                 if numeric_df.shape[1] > 1:
-
                     fig2, ax2 = plt.subplots(figsize=(8, 6))
-
-                    sns.heatmap(
-                        numeric_df.corr(),
-                        cmap="viridis",
-                        ax=ax2
-                    )
-
+                    sns.heatmap(numeric_df.corr(), cmap="viridis", ax=ax2)
                     st.pyplot(fig2)
 
 
-                # ---------- 3. FEATURE COMPARISON ----------
+                # 3. FEATURE COMPARISON
                 st.subheader("Feature Distribution by Tumor Type")
 
                 numeric_cols = numeric_df.columns.tolist()
 
-                if len(numeric_cols) > 0:
-
+                if numeric_cols:
                     selected_feature = st.selectbox(
                         "Select a feature to compare",
                         numeric_cols
                     )
 
                     fig3, ax3 = plt.subplots()
-
                     sns.boxplot(
                         x=data_frame[target_column],
                         y=data_frame[selected_feature],
                         ax=ax3
                     )
-
                     st.pyplot(fig3)
 
 
-                # ---------- 4. PREDICTION CONFIDENCE ----------
+                # 4. PREDICTION CONFIDENCE
                 st.subheader("Prediction Confidence Distribution")
 
                 if hasattr(trained_pipeline, "predict_proba"):
-
                     prob_values = trained_pipeline.predict_proba(X_test)[:, 1]
-
                     fig4, ax4 = plt.subplots()
-
                     ax4.hist(prob_values, bins=20)
-
                     st.pyplot(fig4)
 
 
-                # ---------- 5. ERROR ANALYSIS ----------
+                # 5. ERROR ANALYSIS
                 st.subheader("Prediction Error Analysis")
 
                 error_flags = predictions != y_test
 
                 fig5, ax5 = plt.subplots()
-
                 ax5.bar(
                     ["Correct Predictions", "Incorrect Predictions"],
-                    [
-                        (~error_flags).sum(),
-                        error_flags.sum()
-                    ]
+                    [(~error_flags).sum(), error_flags.sum()]
                 )
-
                 st.pyplot(fig5)
