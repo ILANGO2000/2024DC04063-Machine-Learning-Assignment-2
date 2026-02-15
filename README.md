@@ -1,0 +1,6 @@
+# 2024DC04063-ML-Assignment 2 
+ # a. Problem Statement
+# The objective of this project is to develop machine learning models that can accurately classify breast tumors as either malignant (cancerous) or benign (non-cancerous) based on quantitative features extracted from medical images. Early and reliable classification is crucial for supporting clinical decision-making, enabling timely diagnosis, and improving patient outcomes. This task is formulated as a binary classification problem suitable for evaluating multiple supervised learning algorithms.
+
+# b. Dataset Description
+# The Breast Cancer Wisconsin dataset was obtained from Kaggle. It contains 569 instances and 30 numerical features computed from digitized images of fine needle aspirate (FNA) of breast masses. These features describe characteristics of the cell nuclei, such as radius, texture, perimeter, area, smoothness, compactness, concavity, and symmetry. The dataset meets the minimum requirements for feature count and sample size specified in the assignment and is well-suited for training and comparing multiple classification models.
