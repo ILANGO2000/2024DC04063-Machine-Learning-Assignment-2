@@ -42,15 +42,15 @@ if st.session_state["prev_source"] != data_source:
     st.session_state["prev_source"] = data_source
 
 
-# ---------- DEFAULT DATA ----------
+# ---------- DEFAULT DATA AUTO LOAD ----------
 if data_source == "Use default data":
 
-    if st.button("Load Default Dataset"):
+    if st.session_state["data_frame"] is None:
         try:
             st.session_state["data_frame"] = pd.read_csv("Data.csv")
-            st.success("Default dataset loaded successfully")
         except:
             st.error("Default dataset not found")
+            st.stop()
 
 
 # ---------- UPLOAD DATA ----------
@@ -60,7 +60,6 @@ else:
 
     if uploaded_csv is not None:
         st.session_state["data_frame"] = pd.read_csv(uploaded_csv)
-        st.success("Uploaded dataset loaded successfully")
 
 
 data_frame = st.session_state["data_frame"]
@@ -137,7 +136,11 @@ if data_frame is not None:
             columns=["Model", "Accuracy", "Precision", "Recall", "F1", "MCC", "ROC AUC"]
         )
 
-        styled = results_df.style.background_gradient(cmap="viridis", subset=results_df.columns[1:])
+        styled = results_df.style.background_gradient(
+            cmap="YlOrBr",
+            subset=results_df.columns[1:]
+        )
+
         st.dataframe(styled, use_container_width=True)
 
 
@@ -197,7 +200,6 @@ if data_frame is not None:
 
             matrix = confusion_matrix(y_test, predictions)
             fig, ax = plt.subplots()
-
             sns.heatmap(matrix, annot=True, fmt="d", cmap="coolwarm", ax=ax)
             st.pyplot(fig)
 
